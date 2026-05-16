@@ -26,8 +26,12 @@ export function AddPodcastDialog() {
     setError('');
 
     // Validate URL
-    if (!url.startsWith('https://www.podbean.com/podcast-detail/')) {
-      setError('URL must start with https://www.podbean.com/podcast-detail/');
+    const isValidPodbeanUrl = (url: string) => {
+      return /^https?:\/\/[^.]+\.podbean\.com\/?/.test(url);
+    };
+
+    if (!isValidPodbeanUrl(url)) {
+      setError('URL must be a valid Podbean podcast URL (e.g., https://yourpodcast.podbean.com)');
       return;
     }
 
@@ -54,6 +58,7 @@ export function AddPodcastDialog() {
       const data = await response.json();
 
       addPodcast({
+        id: data.id,
         name: data.name,
         url: data.url,
         iconUrl: data.iconUrl,
@@ -96,7 +101,7 @@ export function AddPodcastDialog() {
         <div className="space-y-4">
           <div className="space-y-2">
             <Input
-              placeholder="https://www.podbean.com/podcast-detail/..."
+              placeholder="https://yourpodcast.podbean.com"
               value={url}
               onChange={(e) => {
                 setUrl(e.target.value);

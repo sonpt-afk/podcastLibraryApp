@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
 import { query } from '@/lib/db';
+import { extractPodbeanSlug, buildRssFeedUrl, parseEpisodesFromRss } from '@/lib/rss';
 
 export async function GET(
   request: NextRequest,
@@ -35,10 +35,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Get podcast URL from database
     const podcastResult = await query(
@@ -54,43 +54,27 @@ export async function POST(
     }
 
     const podcastUrl = podcastResult.rows[0].url;
+    const slug = extractPodbeanSlug(podcastUrl);
 
-    // Scrape episodes
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    if (!slug) {
+      return NextResponse.json(
+        { error: 'Invalid podcast URL format' },
+        { status: 400 }
+      );
+    }
 
-    const page = await browser.newPage();
-    await page.goto(podcastUrl, {
-      waitUntil: 'networkidle0',
-      timeout: 30000,
-    });
+    const rssUrl = buildRssFeedUrl(slug);
+    const rssResponse = await fetch(rssUrl);
 
-    const episodes = await page.evaluate(() => {
-      const episodeElements = document.querySelectorAll('.episode-item, .podcast-episode, [class*="episode"]');
-      const episodesData = [];
+    if (!rssResponse.ok) {
+      return NextResponse.json(
+        { error: 'Could not fetch podcast feed' },
+        { status: 404 }
+      );
+    }
 
-      episodeElements.forEach((el) => {
-        const title = el.querySelector('.episode-title, h2, h3, a')?.textContent?.trim();
-        const iconUrl = el.querySelector('img')?.getAttribute('src');
-        const link = el.querySelector('a')?.getAttribute('href');
-        const dateText = el.querySelector('.date, .published-date, time')?.textContent?.trim();
-
-        if (title && link) {
-          episodesData.push({
-            title,
-            iconUrl: iconUrl || '',
-            episodeUrl: link.startsWith('http') ? link : `https://www.podbean.com${link}`,
-            broadcastDate: dateText ? new Date(dateText) : new Date(),
-          });
-        }
-      });
-
-      return episodesData;
-    });
-
-    await browser.close();
+    const xml = await rssResponse.text();
+    const episodes = parseEpisodesFromRss(xml);
 
     // Save episodes to database
     for (const episode of episodes) {

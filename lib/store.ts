@@ -14,7 +14,7 @@ export const usePodcastStore = create<PodcastStore>()(
             ...state.podcasts,
             {
               ...podcast,
-              id: crypto.randomUUID(),
+              id: podcast.id ?? crypto.randomUUID(),
               createdAt: new Date(),
             },
           ],
@@ -37,6 +37,8 @@ export const usePodcastStore = create<PodcastStore>()(
             [podcastId]: episodes,
           },
         })),
+
+      setPodcasts: (podcasts) => set({ podcasts }),
 
       toggleFavorite: (episodeId, podcastId) =>
         set((state) => ({

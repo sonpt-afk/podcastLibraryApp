@@ -1,11 +1,28 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePodcastStore } from '@/lib/store';
 import { PodcastCard } from '@/components/podcast-card';
 import { AddPodcastDialog } from '@/components/add-podcast-dialog';
 
 export default function Home() {
   const podcasts = usePodcastStore((state) => state.podcasts);
+  const setPodcasts = usePodcastStore((state) => state.setPodcasts);
+
+  useEffect(() => {
+    const syncFromDb = async () => {
+      try {
+        const res = await fetch('/api/podcasts');
+        if (res.ok) {
+          const data = await res.json();
+          setPodcasts(data);
+        }
+      } catch (err) {
+        console.error('Failed to sync podcasts from DB:', err);
+      }
+    };
+    syncFromDb();
+  }, [setPodcasts]);
 
   return (
     <main className="min-h-screen bg-background">

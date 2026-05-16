@@ -40,25 +40,47 @@ export const usePodcastStore = create<PodcastStore>()(
 
       setPodcasts: (podcasts) => set({ podcasts }),
 
-      toggleFavorite: (episodeId, podcastId) =>
-        set((state) => ({
-          episodes: {
-            ...state.episodes,
-            [podcastId]: state.episodes[podcastId]?.map((ep) =>
-              ep.id === episodeId ? { ...ep, isFavorite: !ep.isFavorite } : ep
-            ) || [],
-          },
-        })),
+      toggleFavorite: (episodeId) =>
+        set((state) => {
+          let targetPodcastId: string | null = null;
+          for (const [podcastId, episodes] of Object.entries(state.episodes)) {
+            if (episodes.some((ep) => ep.id === episodeId)) {
+              targetPodcastId = podcastId;
+              break;
+            }
+          }
+          if (!targetPodcastId) return state;
 
-      updateRating: (episodeId, podcastId, rating) =>
-        set((state) => ({
-          episodes: {
-            ...state.episodes,
-            [podcastId]: state.episodes[podcastId]?.map((ep) =>
-              ep.id === episodeId ? { ...ep, rating } : ep
-            ) || [],
-          },
-        })),
+          return {
+            episodes: {
+              ...state.episodes,
+              [targetPodcastId]: state.episodes[targetPodcastId]?.map((ep) =>
+                ep.id === episodeId ? { ...ep, isFavorite: !ep.isFavorite } : ep
+              ) || [],
+            },
+          };
+        }),
+
+      updateRating: (episodeId, rating) =>
+        set((state) => {
+          let targetPodcastId: string | null = null;
+          for (const [podcastId, episodes] of Object.entries(state.episodes)) {
+            if (episodes.some((ep) => ep.id === episodeId)) {
+              targetPodcastId = podcastId;
+              break;
+            }
+          }
+          if (!targetPodcastId) return state;
+
+          return {
+            episodes: {
+              ...state.episodes,
+              [targetPodcastId]: state.episodes[targetPodcastId]?.map((ep) =>
+                ep.id === episodeId ? { ...ep, rating } : ep
+              ) || [],
+            },
+          };
+        }),
 
       addHashtag: (episodeId, podcastId, hashtag) =>
         set((state) => ({

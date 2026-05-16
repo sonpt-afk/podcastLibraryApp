@@ -26,8 +26,8 @@ export interface PodcastStore {
   removePodcast: (id: string) => void;
   setEpisodes: (podcastId: string, episodes: Episode[]) => void;
   setPodcasts: (podcasts: Podcast[]) => void;
-  toggleFavorite: (episodeId: string, podcastId: string) => void;
-  updateRating: (episodeId: string, podcastId: string, rating: number) => void;
+  toggleFavorite: (episodeId: string) => void;
+  updateRating: (episodeId: string, rating: number) => void;
   addHashtag: (episodeId: string, podcastId: string, hashtag: string) => void;
   removeHashtag: (episodeId: string, podcastId: string, hashtag: string) => void;
 }

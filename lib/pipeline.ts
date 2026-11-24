@@ -1,4 +1,5 @@
 import pool, { query } from './db';
+import { ServiceError } from './ebooks';
 import { getGenerator, getTranscriber } from './providers';
 import { ProviderError } from './providers/types';
 import type { MapResult, OutlineChapter, Range, Segment } from './providers/types';
@@ -355,10 +356,23 @@ export async function exportBlockers(ebookId: string) {
 /** drop: remove the failing Episode and continue. retry: re-run what failed (re-transcription is paid again). */
 export async function resolveAttention(ebookId: string, action: 'drop' | 'retry', episodeId?: string) {
   if (action === 'drop') {
-    if (!episodeId) throw new Error('episodeId required');
-    await query('delete from ebook_episodes where ebook_id = $1 and episode_id = $2', [ebookId, episodeId]);
-    await query(`delete from transcription_jobs where episode_id = $1 and status <> 'completed'`, [episodeId]);
-    await query('update ebooks set maps = maps - $2::text where id = $1', [ebookId, episodeId]);
+    // No id given (the UI has none): drop whichever Episodes of this Ebook have a failed transcription.
+    const ids = episodeId
+      ? [episodeId]
+      : (
+          await query<{ episode_id: string }>(
+            `select tj.episode_id from transcription_jobs tj
+               join ebook_episodes ee on ee.episode_id = tj.episode_id
+              where ee.ebook_id = $1 and tj.status = 'failed'`,
+            [ebookId],
+          )
+        ).rows.map((r) => r.episode_id);
+    if (!ids.length) throw new ServiceError('Nothing to drop: no failed Episode found.', 409);
+    for (const id of ids) {
+      await query('delete from ebook_episodes where ebook_id = $1 and episode_id = $2', [ebookId, id]);
+      await query(`delete from transcription_jobs where episode_id = $1 and status <> 'completed'`, [id]);
+      await query('update ebooks set maps = maps - $2::text where id = $1', [ebookId, id]);
+    }
   } else {
     await query(
       `update transcription_jobs set status = 'submitted', attempts = 0, assemblyai_id = null, error = null

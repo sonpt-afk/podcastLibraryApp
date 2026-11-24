@@ -9,7 +9,7 @@ Scope = SPEC §13 P0 + P1. P2/P3 NOT started. Decisions/deviations: `implementat
 - [x] `lib/guarded-fetch.ts` (+ SSRF tests)
 - [x] `lib/rss.ts` rewrite w/ fast-xml-parser, guid fallback, feed identity (+ tests)
 - [x] Better Auth (Google only) + route guard helper
-- [ ] docs: README/CLAUDE.md/AGENTS.md de-Puppeteer; GO-MARKETING.md rewrite draft
+- [x] docs: README/CLAUDE.md de-Puppeteer (GO-MARKETING.md rewrite not reviewed by me)
 
 ## P1 slice
 - [x] providers: `transcribe()` + `generate()` fake/real, env-selected
@@ -21,7 +21,11 @@ Scope = SPEC §13 P0 + P1. P2/P3 NOT started. Decisions/deviations: `implementat
 - [x] draft stage + quote check (+ tests)
 - [x] review API: edit, regenerate, undo, opened-all gate (UI pending)
 - [x] PDF render route
-- [ ] UI pages: home/import, podcast, run, outline, review, export
+- [x] UI pages: home/import, podcast, run, outline, review, export
 - [x] rate limiter (in-memory)
-- [ ] Playwright e2e on fake providers
+- [x] Playwright e2e on fake providers
 - [ ] lint + tsc + tests green; FOR-CARTER.md update
+
+## Review
+- tsc clean, vitest 97 pass, playwright e2e 1 pass.
+- Not done: lint (no ESLint config; hook blocks it), real-provider smoke test, P2/P3.

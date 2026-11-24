@@ -87,6 +87,24 @@ If the AI invents a quote and attributes it to a podcaster's guest, and the podc
 - **TanStack Query**: a library for fetching and polling server data in React.
 - **node-pg-migrate**: versioned SQL files that evolve the database safely.
 
+## Lessons from building the thin slice
+
+**Zero tests is not green.** A test runner that says "PASS (0) FAIL (0)" can mean the suite failed to load at all. Ours did: Next needs `jsx: preserve` in tsconfig, Vitest then could not parse `.tsx`. Think of a smoke alarm that is silent because the battery is out. Always check the *count*.
+
+**Stale generated files lie.** After deleting old routes, `tsc` reported 12 phantom errors, because `.next/types` still pointed at them. Delete the build cache before trusting a type error.
+
+**Security by construction beats security by checking.** The SSRF guard checks the IP inside the socket's DNS lookup, so the address it validated is the address it connects to. A "resolve, check, then connect" design lets an attacker swap the answer in between (DNS rebinding). The price: a localhost test server can never pass, so the e2e test uses a flagged fixture instead.
+
+**Specs have bugs too.** The spec's chapter lease claim (`pending OR lease expired`) would have re-claimed *finished* chapters, because their old lease is in the past. Writing the race test first exposed it.
+
+**Guard your test database.** Tests wipe tables, so `vitest.config.ts` refuses to run unless `TEST_DATABASE_URL` differs from `DATABASE_URL`. One wrong env var is how people delete production.
+
+**A slow test is not a hung test.** The PDF route "hung" in e2e. I blamed react-pdf and changed config, then called the route directly: 200 in 15 s. The real problem was a 2-minute budget against cold `next dev` compiles. Measure before you theorise, and revert the fix for a bug you did not have.
+
+**Hand-off bugs hide at seams.** The UI subagent found that "drop episode" returned a 500 because the API needed an id the UI could not know. Each side was fine alone.
+
+**Tooling friction is data.** A hook blocked `.eslintrc.json`, so lint is still unconfigured. I did not bypass it; I logged it for you.
+
 ## Where the project is right now
 
-Spec and decisions are done (`docs/SPEC.md`, `docs/adr/0001`–`0004`). No product code has been changed yet. Next up: Phase 0 cleanup on a feature branch (delete the bookshelf features, add migrations and auth), then the thin slice. All twelve open questions in the spec (section 18) are now answered. Still open: the product name and domain, which must be bought before outreach. Phase 1 runs on a free `*.up.railway.app` address with Google-only login.
+P0 and P1 are built on branch `feat/p0-p1-ebook-pipeline`: RSS import, transcript and chapter pipeline on fake providers, quote check, review UI, and PDF export. `tsc` is clean, 97 unit tests and one Playwright end-to-end run pass. Not done: the real AssemblyAI and OpenAI providers have never touched the live APIs (smoke-test them with your $4 of credit), lint config, and everything in P2/P3 (quotas, ownership check, billing, listing kit). Open: product name and domain.

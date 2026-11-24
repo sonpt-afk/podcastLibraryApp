@@ -1,9 +1,12 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import pool, { query } from './db';
 import { guardedFetch } from './guarded-fetch';
 import { feedIdentity, isEnglish, parseFeed } from './rss';
 
 export const ATTEST_TEXT_VERSION = 'attest-v1';
 export const MAX_AUDIO_SECONDS = 6 * 3600;
+export const E2E_FIXTURE_URL = 'https://fixture.invalid/feed.xml';
 
 /** Expected failure the route maps to a 4xx with `message` shown to the user. */
 export class ServiceError extends Error {
@@ -17,7 +20,11 @@ export async function importFeed(userId: string, feedUrl: string, ip: string, at
   if (!attested) throw new ServiceError('Confirm you own or have rights to this podcast.');
   let xml: string;
   try {
-    xml = (await guardedFetch(feedUrl)).body.toString('utf8');
+    // ponytail: e2e-only hook (same flag as password login) so Playwright needs no public feed; never set E2E_AUTH in prod.
+    xml =
+      process.env.E2E_AUTH === '1' && feedUrl === E2E_FIXTURE_URL
+        ? await readFile(path.join(process.cwd(), 'e2e/fixture-feed.xml'), 'utf8')
+        : (await guardedFetch(feedUrl)).body.toString('utf8');
   } catch (e) {
     throw new ServiceError(`Could not fetch that feed: ${(e as Error).message}`);
   }

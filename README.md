@@ -1,181 +1,57 @@
-# Son Podcast Library
+# Podcast → Ebook
 
-A personalized podcast library webapp that allows you to maintain your favorite podcasts and episodes from Podbean using Puppeteer for web scraping.
+Turn a podcast you own into an Ebook (PDF). Import an RSS feed, pick episodes, and the app transcribes them, proposes a chapter outline, drafts the chapters from the transcripts, and exports a 6×9 PDF after you review every chapter.
 
-## Tech Stack
+Spec: [`docs/SPEC.md`](docs/SPEC.md) · Decisions: [`docs/adr/`](docs/adr) · Vocabulary: [`CONTEXT.md`](CONTEXT.md) · Deviations and gotchas: [`implementation-notes.md`](implementation-notes.md)
 
-**Frontend:**
-- Next.js 15 (App Router)
-- TypeScript
-- TailwindCSS
-- Shadcn UI
-- React Query
-- Zustand
+## Status
 
-**Backend:**
-- Node.js (Next.js API Routes)
-- PostgreSQL
-- Puppeteer
+SPEC §13 **P0 + P1** (thin slice, Google sign-in, no payments). Not built yet: quotas, ownership verification, Polar billing, email/sweeper, listing kit, account deletion, EPUB. See `implementation-notes.md`.
 
-## Features
+## Stack
 
-### Favorite Podcast Display
-- View favorite podcasts in a grid layout
-- See "No podcasts added yet" watermark when empty
-- Display podcast icon, name, and episode count
-- Click podcast to view episodes
+Next.js 15 (App Router) · React 19 · TypeScript · Tailwind + shadcn/ui · TanStack Query · PostgreSQL via `pg` + `node-pg-migrate` · Better Auth (Google) · AssemblyAI (transcripts) · OpenAI (outline + chapters) · `@react-pdf/renderer` · Vitest · Playwright
 
-### Favorite Podcast Entry
-- Add new podcasts via '+' button
-- Validate Podbean URLs
-- Scrape podcast details automatically
-- Persist favorites across sessions
+## How it works
 
-### Episode Management
-- View recent episodes for each podcast
-- Mark episodes as favorites
-- Rate episodes (1-5 stars)
-- Add custom hashtags
-- Sort by favorites, ratings, and date
+1. **Import**: paste an RSS URL (or search Apple Podcasts in the browser). Feeds are fetched through an SSRF-guarded fetch (`lib/guarded-fetch.ts`), English only. You attest you own the show.
+2. **Create**: choose episodes (≤ 6 h audio) and write a one-line brief. One Ebook per podcast.
+3. **Run**: the browser polls `POST /api/ebooks/:id/advance`; each call does one idempotent unit of work (transcribe → map → outline → draft). State lives in Postgres, so closing the tab is safe.
+4. **Outline**: edit, reorder, delete chapters, then approve.
+5. **Review**: every chapter must be opened before export. Quotes are checked verbatim against the transcript; ungrounded quotes are redrafted, then demoted to plain text. Numbers and names not in the transcript are flagged.
+6. **Export**: PDF rendered on demand, never stored.
 
-### Bonus Features
-- Episode ratings with 5-star system
-- Custom hashtag support
-- Search episodes by hashtags
-
-## Setup Instructions
-
-### Prerequisites
-- Node.js 18+ installed
-- PostgreSQL 14+ installed and running
-
-### 1. Install Dependencies
+## Setup
 
 ```bash
 npm install
+cp .env.example .env            # fill in values
+createdb podcast_ebook && createdb podcast_ebook_test
+npm run migrate                 # dev DB
+DATABASE_URL=<test db url> npm run migrate
+npm run dev                     # http://localhost:3000
 ```
 
-### 2. Database Setup
+Set `TRANSCRIBE_PROVIDER=fake` and `GENERATE_PROVIDER=fake` to run the whole pipeline on canned data for free. `real` needs `ASSEMBLYAI_API_KEY` / `OPENAI_API_KEY`. Google sign-in needs `GOOGLE_CLIENT_ID/SECRET` and redirect URI `<BETTER_AUTH_URL>/api/auth/callback/google`.
 
-Create a PostgreSQL database:
+## Commands
 
 ```bash
-createdb son_podcast_library
+npm run dev | build | start     # start also runs pending migrations
+npm run migrate                 # node-pg-migrate up
+npm test                        # vitest (needs TEST_DATABASE_URL, a DIFFERENT database: tests truncate tables)
+npx tsc --noEmit
 ```
 
-Initialize the database schema:
-
-```bash
-psql -d son_podcast_library -f scripts/init-db.sql
-```
-
-### 3. Environment Variables
-
-Create a `.env` file in the root directory:
-
-```bash
-cp .env.example .env
-```
-
-Update the `.env` file with your database credentials:
-
-```env
-DATABASE_URL=postgresql://user:password@localhost:5432/son_podcast_library
-NODE_ENV=development
-```
-
-### 4. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Usage
-
-### Adding a Podcast
-
-1. Click the '+' button in the top right
-2. Enter a Podbean podcast URL (must start with `https://www.podbean.com/podcast-detail/`)
-3. Click 'Save'
-4. The podcast will be scraped and added to your library
-
-### Viewing Episodes
-
-1. Click on a podcast card
-2. View the list of recent episodes
-3. Click episode icons to open on Podbean
-4. Use the heart icon to mark favorites
-5. Click stars to rate episodes
-6. Add hashtags for organization
-
-### Searching by Hashtags
-
-1. Enter hashtags in the search box on the main page
-2. Click 'Search' to find episodes across all podcasts
-3. Click 'Cancel' to return to the main page
-
-## Project Structure
+## Layout
 
 ```
-son-podcast-library/
-├── app/                      # Next.js app directory
-│   ├── api/                  # API routes
-│   │   ├── podcasts/         # Podcast endpoints
-│   │   └── episodes/         # Episode endpoints
-│   ├── layout.tsx            # Root layout
-│   └── page.tsx              # Home page
-├── components/               # React components
-│   ├── ui/                   # Shadcn UI components
-│   └── providers/            # Context providers
-├── lib/                      # Utilities
-│   ├── db.ts                 # Database client
-│   ├── store.ts              # Zustand store
-│   ├── types.ts              # TypeScript types
-│   └── utils.ts              # Helper functions
-├── scripts/                  # Database scripts
-│   └── init-db.sql           # DB initialization
-└── public/                   # Static assets
+app/api/            thin route handlers (auth check → lib/)
+app/                pages: import, podcast, ebook (run / outline / review / export)
+lib/pipeline.ts     advance() state machine, leases, review actions
+lib/providers/      Transcriber / Generator interfaces; fake, assemblyai, openai
+lib/quote-check.ts  verbatim-quote fidelity check
+lib/ebooks.ts       import + create + ownership helpers
+lib/pdf.tsx         PDF renderer
+migrations/         plain .sql (Up/Down) for node-pg-migrate
 ```
-
-## API Endpoints
-
-### Podcasts
-- `POST /api/podcasts/scrape` - Scrape and add a podcast
-- `GET /api/podcasts` - Get all podcasts
-- `DELETE /api/podcasts?id={id}` - Delete a podcast
-
-### Episodes
-- `GET /api/podcasts/{id}/episodes` - Get episodes for a podcast
-- `POST /api/podcasts/{id}/episodes` - Scrape episodes for a podcast
-- `PATCH /api/episodes/{id}/favorite` - Toggle favorite status
-- `PATCH /api/episodes/{id}/rating` - Update episode rating
-- `POST /api/episodes/{id}/hashtags` - Add hashtag
-- `DELETE /api/episodes/{id}/hashtags?tag={tag}` - Remove hashtag
-
-## Development
-
-### Build for Production
-
-```bash
-npm run build
-npm start
-```
-
-### Linting
-
-```bash
-npm run lint
-```
-
-## Notes
-
-- The app uses Puppeteer for web scraping, which requires Chrome/Chromium to be installed
-- Scraping may take a few seconds depending on the podcast page
-- Make sure PostgreSQL is running before starting the development server
-- Data is persisted both in PostgreSQL (server-side) and localStorage (client-side Zustand state)
-
-## License
-
-MIT

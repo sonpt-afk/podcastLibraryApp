@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>Fixture Show</title>
+    <description>A show used by the e2e test.</description>
+    <language>en-us</language>
+    <itunes:author>Fixture Host</itunes:author>
+    <item>
+      <title>Episode One</title>
+      <guid>fixture-ep-1</guid>
+      <pubDate>Mon, 03 Mar 2025 10:00:00 GMT</pubDate>
+      <itunes:duration>1800</itunes:duration>
+      <enclosure url="https://fixture.invalid/ep1.mp3" length="1000" type="audio/mpeg"/>
+    </item>
+    <item>
+      <title>Episode Two</title>
+      <guid>fixture-ep-2</guid>
+      <pubDate>Mon, 10 Mar 2025 10:00:00 GMT</pubDate>
+      <itunes:duration>1800</itunes:duration>
+      <enclosure url="https://fixture.invalid/ep2.mp3" length="1000" type="audio/mpeg"/>
+    </item>
+  </channel>
+</rss>

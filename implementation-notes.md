@@ -59,3 +59,19 @@ Branch: `feat/p0-p1-ebook-pipeline`. Scope: SPEC §13 P0 + P1.
 - **Outline approval body** is zod-checked for shape; source validity (episodes belong to this Ebook) is still checked in `approveOutline`.
 - **PDF:** rendered on demand with `@react-pdf/renderer` (built-in Times/Helvetica, 6x9 in): cover, contents (no page numbers, would need a two-pass render), chapter openers, centered folio. Inline formatting limited to bold/italic; links and code render as plain text. Export is blocked (409) unless status is `review`/`exported` and every chapter is drafted and opened; a successful render sets `exported`. Nothing is stored.
 - **Test gotcha:** `tsconfig` has `jsx: preserve` (Next needs it), which made Vitest fail to parse `.tsx`. Fixed with `oxc: { jsx: { runtime: 'automatic' } }` in `vitest.config.ts`. The test runner wrapper summarised the failed suite as "PASS (0) FAIL (0)": zero tests is not green.
+
+## P1: e2e setup
+
+- **Fixture feed bypasses the SSRF guard.** `guardedFetch` blocks private/localhost, so a local fixture server cannot work. When `E2E_AUTH=1` and the URL is exactly `https://fixture.invalid/feed.xml`, `importFeed` reads `e2e/fixture-feed.xml` from disk (`lib/ebooks.ts`). Same flag as the test-only password login; never set in prod. Tradeoff: a test branch lives in prod code, but it is one line, inert without the flag, and it keeps the guard itself untouched.
+- **Playwright runs `next dev` on port 3100 against `TEST_DATABASE_URL`** (tables get wiped), fake providers. Playwright does not read `.env`: export it first (`set -a; . <(tr -d '\r' < .env); set +a`).
+- **README/CLAUDE.md rewritten** for the Ebook app (Puppeteer/Podbean/Zustand content removed).
+- **E2E passes** (`npx playwright test`, ~3 min): sign in → import fixture → create → run → approve → edit/open chapters → PDF 200 `%PDF-`. Slowness is `next dev` cold-compiling ~10 routes on /mnt/d (WSL), so test timeout is 360 s and `expect` timeout 30 s. The PDF check fetches the link directly instead of waiting for a download event: a failed `<a download>` emits no event and hides the server error. Needs `npx playwright install chromium` once.
+- **False lead:** I suspected react-pdf hung inside Next and tried `serverExternalPackages`. It was only the test budget; PDF route returns 200 in ~15 s cold. Reverted.
+
+## P1: UI
+
+- Pages: `app/page.tsx` (sign-in, import, list), `app/podcast/[id]/page.tsx` (episode pick, 6 h total, brief), `app/ebook/[id]/page.tsx` (run stepper + advance loop, outline editor, review editor, details, export). Built by a subagent; I reviewed contract mismatches, not every line.
+- **Advance loop guards** against overlap (busy ref) and stops with a "Resume" button on error.
+- **Fix:** `resolveAttention('drop')` threw a plain Error (500) without an `episodeId`, and the UI has no id. Now drop defaults to this Ebook's Episodes with a failed transcription (409 if none).
+- **Known gaps:** omitted-passages list labels Episodes by id prefix (GET lacks titles); no live markdown preview, guest badge, listing kit (P2); UI never calls `/api/cron/advance` (sweeper is P2). E2E sign-in form signs up then in with one button.
+- **`.eslintrc.json` still missing** (config-protection hook): add `{"extends":"next/core-web-vitals"}`.

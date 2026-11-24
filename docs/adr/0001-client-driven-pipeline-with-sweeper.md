@@ -1,0 +1,3 @@
+# Client-driven Postgres state machine with a sweeper, no job queue
+
+A Run advances through an idempotent `advance` route that the open tab calls repeatedly; Postgres rows hold all state, and a lease compare-and-set (`UPDATE ... WHERE status='pending' OR lease_until<now()`) plus `UNIQUE(ebook_id, chapter_no)` makes concurrent callers safe. A scheduled sweeper hits the same route for Runs whose lease expired, so closing the tab does not freeze a Run. We rejected a durable runner (Inngest/Trigger.dev) to keep one runtime, one datastore, and no vendor dependency for an MVP; the cost is that progress needs either a tab or the sweeper, and every step must be written to be re-entrant.

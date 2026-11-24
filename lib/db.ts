@@ -1,41 +1,21 @@
-import { Pool } from 'pg';
+import { Pool, type QueryResultRow } from 'pg';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+// Reuse one pool across Next.js dev hot reloads (otherwise each reload leaks a pool).
+const g = globalThis as unknown as { __pgPool?: Pool };
 
-export const query = async (text: string, params?: any[]) => {
-  const start = Date.now();
-  const res = await pool.query(text, params);
-  const duration = Date.now() - start;
-  console.log('Executed query', { text, duration, rows: res.rowCount });
-  return res;
-};
+const pool =
+  g.__pgPool ??
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+  });
+if (process.env.NODE_ENV !== 'production') g.__pgPool = pool;
 
-export const getClient = async () => {
-  const client = await pool.connect();
-  const query = client.query;
-  const release = client.release;
-
-  // Set a timeout of 5 seconds, after which we will log this client's last query
-  const timeout = setTimeout(() => {
-    console.error('A client has been checked out for more than 5 seconds!');
-  }, 5000);
-
-  // Monkey patch the query method to keep track of the last query executed
-  const originalQuery = client.query.bind(client);
-  (client as any).query = (...args: any[]) => {
-    return originalQuery(...args);
-  };
-
-  client.release = () => {
-    clearTimeout(timeout);
-    client.query = query;
-    client.release = release;
-    return release.apply(client);
-  };
-
-  return client;
-};
+export async function query<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[],
+) {
+  return pool.query<T>(text, params);
+}
 
 export default pool;

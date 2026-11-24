@@ -1,0 +1,3 @@
+# Verbatim-quote check and PDFs rendered on demand from Markdown
+
+Transcripts are split into numbered segments; the outline assigns segment ranges to Chapters, and every passage in quotation marks must fuzzy-match a substring of its Chapter's segments or it is retried once and then demoted to unquoted paraphrase. Chapter Markdown in Postgres is the only source of truth, and the PDF is rendered fresh on each download (react-pdf), so there is no object store and a PDF can never be stale or outlive a deletion. We rejected prompt-only grounding (LLMs paraphrase inside quotes) and stored PDFs (extra dependency, consistency and purge work). The cost is a 1-3s render per download and a hard dependency on keeping segment IDs stable through editing.

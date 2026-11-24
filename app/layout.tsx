@@ -6,8 +6,8 @@ import { QueryProvider } from "@/components/providers/query-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Son Podcast Library",
-  description: "Your personalized podcast library",
+  title: "Podcast to Ebook",
+  description: "Turn your podcast episodes into an ebook you can sell",
 };
 
 export default function RootLayout({

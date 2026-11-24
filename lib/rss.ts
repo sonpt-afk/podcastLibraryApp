@@ -1,61 +1,104 @@
-export function extractPodbeanSlug(url: string): string | null {
-  const match = url.match(/^https?:\/\/([^.]+)\.podbean\.com\/?/);
-  return match ? match[1] : null;
-}
+import { createHash } from 'node:crypto';
+import { XMLParser } from 'fast-xml-parser';
 
-export function buildRssFeedUrl(slug: string): string {
-  return `https://feed.podbean.com/${slug}/feed.xml`;
-}
-
-export interface RssPodcast {
+export interface FeedEpisode {
+  guid: string;
   title: string;
-  iconUrl: string;
+  audioUrl: string;
+  durationS: number | null;
+  publishedAt: string | null; // ISO-8601
   description: string;
 }
 
-export interface RssEpisode {
+export interface Feed {
   title: string;
-  episodeUrl: string;
-  iconUrl: string;
-  broadcastDate: Date;
   description: string;
+  artUrl: string | null;
+  language: string | null;
+  ownerEmail: string | null;
+  podcastGuid: string | null;
+  episodes: FeedEpisode[]; // newest first
 }
 
-export function parsePodcastFromRss(xml: string): RssPodcast {
-  const title = xml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1]
-    ?? xml.match(/<title>(.*?)<\/title>/)?.[1]
-    ?? 'Unknown Podcast';
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  textNodeName: '#text',
+  isArray: (name) => name === 'item',
+});
 
-  const iconUrl = xml.match(/<itunes:image href="([^"]+)"/)?.[1]
-    ?? xml.match(/<image>[\s\S]*?<url>(.*?)<\/url>[\s\S]*?<\/image>/)?.[1]
-    ?? '';
+const sha1 = (s: string) => createHash('sha1').update(s).digest('hex');
 
-  const description = xml.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1]
-    ?? xml.match(/<description>(.*?)<\/description>/)?.[1]
-    ?? '';
-
-  return { title, iconUrl, description };
+// Element text can be a string, number, or {'#text', '@_attr'} when attributes exist.
+function text(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'object') return text((v as Record<string, unknown>)['#text']);
+  return String(v).trim();
 }
 
-export function parseEpisodesFromRss(xml: string): RssEpisode[] {
-  const items = xml.match(/<item>[\s\S]*?<\/item>/g) ?? [];
+function attr(v: unknown, name: string): string | null {
+  const a = v && typeof v === 'object' ? (v as Record<string, unknown>)[`@_${name}`] : undefined;
+  return typeof a === 'string' && a ? a : null;
+}
 
-  return items.map((item) => {
-    const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1]
-      ?? item.match(/<title>(.*?)<\/title>/)?.[1]
-      ?? 'Untitled Episode';
+/** "1:02:03" | "62:03" | "3723" -> seconds */
+export function parseDuration(raw: string): number | null {
+  if (!/^\d+(:\d{1,2}){0,2}(\.\d+)?$/.test(raw)) return null;
+  const secs = raw.split(':').reduce((acc, p) => acc * 60 + Number(p), 0);
+  return Math.round(secs);
+}
 
-    const episodeUrl = item.match(/<link>(.*?)<\/link>/)?.[1] ?? '';
+export function parseFeed(xml: string): Feed {
+  const rss = parser.parse(xml)?.rss;
+  const ch = rss?.channel;
+  if (!ch) throw new Error('Not an RSS podcast feed');
 
-    const iconUrl = item.match(/<itunes:image href="([^"]+)"/)?.[1] ?? '';
+  const episodes: FeedEpisode[] = [];
+  for (const item of (ch.item ?? []) as Record<string, unknown>[]) {
+    const audioUrl = attr(item.enclosure, 'url');
+    if (!audioUrl) continue; // no audio = nothing to transcribe
+    const title = text(item.title) || 'Untitled episode';
+    const pub = text(item.pubDate);
+    const t = pub ? Date.parse(pub) : NaN;
+    episodes.push({
+      // Some hosts omit <guid>; SPEC §4 fallback keeps (podcast_id, guid) uniqueness stable.
+      guid: text(item.guid) || sha1(audioUrl + title),
+      title,
+      audioUrl,
+      durationS: parseDuration(text(item['itunes:duration'])),
+      publishedAt: Number.isNaN(t) ? null : new Date(t).toISOString(),
+      description: text(item['content:encoded']) || text(item.description),
+    });
+  }
+  episodes.sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
 
-    const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
-    const broadcastDate = pubDate ? new Date(pubDate) : new Date();
+  return {
+    title: text(ch.title) || 'Untitled podcast',
+    description: text(ch.description),
+    artUrl: attr(ch['itunes:image'], 'href') ?? (text(ch.image?.url) || null),
+    language: text(ch.language).toLowerCase() || null,
+    ownerEmail: text(ch['itunes:owner']?.['itunes:email']) || null,
+    podcastGuid: text(ch['podcast:guid']) || null,
+    episodes,
+  };
+}
 
-    const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1]
-      ?? item.match(/<description>(.*?)<\/description>/)?.[1]
-      ?? '';
+/** English gate (SPEC §6): missing language is allowed, "en" / "en-US" pass, everything else is blocked. */
+export function isEnglish(language: string | null): boolean {
+  return !language || /^en([-_]|$)/i.test(language);
+}
 
-    return { title, episodeUrl, iconUrl, broadcastDate, description };
-  });
+/**
+ * Stable identity for the free-quota key: survives host migrations when the feed has <podcast:guid>,
+ * otherwise a hash of the normalised URL (https, lowercase host, no fragment/trailing slash/utm_*).
+ */
+export function feedIdentity(feedUrl: string, podcastGuid?: string | null): string {
+  if (podcastGuid) return sha1(`guid:${podcastGuid.toLowerCase()}`);
+  const u = new URL(feedUrl);
+  u.protocol = 'https:';
+  u.hash = '';
+  for (const k of [...u.searchParams.keys()]) if (k.startsWith('utm_')) u.searchParams.delete(k);
+  u.searchParams.sort();
+  const path = u.pathname.replace(/\/+$/, '');
+  return sha1(`url:${u.host.toLowerCase()}${path}${u.search}`);
 }

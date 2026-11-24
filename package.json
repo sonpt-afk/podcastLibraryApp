@@ -5,35 +5,45 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "node-pg-migrate up -m migrations && next start",
+    "lint": "next lint",
+    "migrate": "node-pg-migrate up -m migrations --envPath .env",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.0",
+    "@react-pdf/renderer": "^4.9.1",
     "@tanstack/react-query": "^5.59.0",
+    "better-auth": "^1.7.27",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fast-xml-parser": "^5.12.1",
     "lucide-react": "^0.453.0",
+    "marked": "^18.3.0",
     "next": "^15.1.0",
+    "node-pg-migrate": "^9.0.0",
     "pg": "^8.13.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5",
-    "zod": "^3.24.1",
-    "zustand": "^5.0.2"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^20",
     "@types/pg": "^8.11.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.22",
+    "dotenv": "^18.0.10",
     "eslint": "^8",
     "eslint-config-next": "^15.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5"
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }

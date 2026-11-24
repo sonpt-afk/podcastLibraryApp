@@ -26,8 +26,8 @@ interface Utterance {
 
 export const assemblyAi: Transcriber = {
   async submit(audioUrl) {
-    const body: Record<string, unknown> = { audio_url: audioUrl, speaker_labels: true, language_code: 'en' };
-    if (process.env.ASSEMBLYAI_MODEL) body.speech_model = process.env.ASSEMBLYAI_MODEL;
+    // Pinned: account defaults change (AssemblyAI docs say set it explicitly). Pre-recorded takes plural `speech_models`; singular `speech_model` is deprecated here.
+    const body = { audio_url: audioUrl, speaker_labels: true, language_code: 'en', speech_models: ['assemblyai-stt-3-7'] };
     const t = await call('', { method: 'POST', body: JSON.stringify(body) });
     return t.id as string;
   },

@@ -103,6 +103,8 @@ If the AI invents a quote and attributes it to a podcaster's guest, and the podc
 
 **Hand-off bugs hide at seams.** The UI subagent found that "drop episode" returned a 500 because the API needed an id the UI could not know. Each side was fine alone.
 
+**Silent field names are the worst bugs.** The AssemblyAI request sent `speech_model` (singular). The docs say pre-recorded wants `speech_models` (plural list), and the API quietly used the account default instead of failing. Nothing errored; the wrong model would have run on every real Episode. A free unit test now pins the exact request body, so we don't need a paid call to catch it.
+
 **Tooling friction is data.** A hook blocked `.eslintrc.json`, so lint is still unconfigured. I did not bypass it; I logged it for you.
 
 ## Where the project is right now

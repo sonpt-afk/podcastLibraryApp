@@ -40,6 +40,7 @@ Set `TRANSCRIBE_PROVIDER=fake` and `GENERATE_PROVIDER=fake` to run the whole pip
 npm run dev | build | start     # start also runs pending migrations
 npm run migrate                 # node-pg-migrate up
 npm test                        # vitest (needs TEST_DATABASE_URL, a DIFFERENT database: tests truncate tables)
+SMOKE_REAL=1 npm test -- lib/providers/real.smoke   # LIVE OpenAI + AssemblyAI calls, costs cents; needs the keys in .env
 npx tsc --noEmit
 ```
 

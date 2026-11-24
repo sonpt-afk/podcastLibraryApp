@@ -4,9 +4,11 @@ import { openAi } from './openai';
 import type { PollResult, Segment } from './types';
 
 // Opt-in live smoke test: calls the REAL OpenAI and AssemblyAI APIs (cents, not dollars).
-// Skipped unless SMOKE_REAL=1 and the keys + OPENAI_MODEL_* are set in .env. Plain `npm test` never runs it.
+// Skipped unless SMOKE_REAL=1 is set on the command line. Never put SMOKE_REAL in .env: vitest loads .env into the test env, so plain `npm test` would go live.
 // SMOKE_AUDIO_URL: point at a shorter public clip to spend less on AssemblyAI (default is 8 MB, about 8 min).
 const AUDIO_URL = process.env.SMOKE_AUDIO_URL ?? 'https://assembly.ai/sports_injuries.mp3';
+// openai.ts aborts at 180 s; Vitest's default test timeout is 5 s, which is too short for a live call.
+const OPENAI_TIMEOUT_MS = 4 * 60_000;
 
 const segments: Segment[] = [
   { id: 0, speaker: 'A', start_ms: 0, text: 'Welcome back. Today we talk about saving three months of rent.' },
@@ -22,7 +24,7 @@ describe.runIf(process.env.SMOKE_REAL === '1')('real providers (live, costs cent
     for (const t of map.topics) {
       for (const r of t.ranges) expect(r.from >= 0 && r.from <= r.to && r.to <= 3, JSON.stringify(r)).toBe(true);
     }
-  });
+  }, OPENAI_TIMEOUT_MS);
 
   it('OpenAI drafts a Markdown chapter', async () => {
     const md = await openAi.draftChapter({
@@ -32,7 +34,7 @@ describe.runIf(process.env.SMOKE_REAL === '1')('real providers (live, costs cent
       segments: segments.slice(0, 3),
     });
     expect(md.trim().startsWith('#')).toBe(true);
-  });
+  }, OPENAI_TIMEOUT_MS);
 
   it('AssemblyAI transcribes a public clip with speaker labels, then deletes it', async () => {
     const id = await assemblyAi.submit(AUDIO_URL);

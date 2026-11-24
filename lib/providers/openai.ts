@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ProviderError } from './types';
 import type { Generator, Segment } from './types';
 
-// Plain fetch to Chat Completions on the Flex tier (cheaper, slower: hence the long timeout). Model names come from env.
+// Plain fetch to Chat Completions on the standard tier. Flex was tried first (half price) but its capacity 429s stalled runs. Model names come from env.
 
 const range = z.object({ from: z.number().int(), to: z.number().int() });
 const mapSchema = z.object({
@@ -27,7 +27,7 @@ async function chat(model: string | undefined, system: string, user: string, jso
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
-      service_tier: 'flex',
+      service_tier: 'default',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -37,8 +37,11 @@ async function chat(model: string | undefined, system: string, user: string, jso
     signal: AbortSignal.timeout(180_000),
   });
   if (!res.ok) {
-    // 429 covers Flex "resource unavailable": retry. Other 4xx: our prompt/model is wrong.
-    throw new ProviderError(`OpenAI ${res.status}`, res.status >= 400 && res.status < 500 && res.status !== 429);
+    // The body names the cause. insufficient_quota = out of credit (permanent). Other 429s are rate limits (transient).
+    const body = await res.text().catch(() => '');
+    const quota = body.includes('insufficient_quota');
+    const permanent = quota || (res.status >= 400 && res.status < 500 && res.status !== 429);
+    throw new ProviderError(`OpenAI ${res.status}: ${body.slice(0, 300)}`, permanent);
   }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content;
